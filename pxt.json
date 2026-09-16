@@ -9,7 +9,12 @@
     },
     "yotta": {
         "config": {
-            "microbit-dal": { "bluetooth": { "enabled": 1 } }
+            "microbit-dal": {
+                "bluetooth": {
+                    "enabled": 1,
+                    "pairing_mode": 1
+                }
+            }
         }
     },
     "files": [
