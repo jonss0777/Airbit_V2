@@ -3,6 +3,7 @@ function servo1_test () {
     control.waitMicros(1500 + roll * 10)
     pins.digitalWritePin(DigitalPin.P1, 0)
 }
+
 function JoystickDeadBand () {
     if (Math.abs(roll) < 5) {
         roll = 0
@@ -11,6 +12,7 @@ function JoystickDeadBand () {
         pitch = 0
     }
 }
+
 function screen () {
     if (pins.analogReadPin(AnalogPin.P0) > 780) {
         if (pins.analogReadPin(AnalogPin.P0) > 950) {
@@ -45,8 +47,8 @@ function screen () {
         }
         if (mode == 1) {
             led.plotBarGraph(
-            airbit.batteryLevel(),
-            100
+                airbit.batteryLevel(),
+                100
             )
         }
         if (mode == 2) {
@@ -67,6 +69,7 @@ function screen () {
         }
     }
 }
+
 function mainLoop () {
     while (true) {
         // Read raw data from gyro and accelerometer
@@ -76,7 +79,7 @@ function mainLoop () {
         basic.pause(1)
         lostSignalCheck()
         if (motorTesting == false) {
-            // The "magic" algorithm that stabilises the drone based on setpoint angle and actual angle, finding the difference and chanring motor speed to compensate.
+            // The "magic" algorithm that stabilises the drone based on setpoint angle and actual angle, finding the difference and changing motor speed to compensate.
             airbit.stabilisePid()
         }
         // If upside down while armed, disable flying
@@ -88,17 +91,17 @@ function mainLoop () {
             if (throttle == 0) {
                 // Idle speed of motors
                 airbit.MotorSpeed(
-                5,
-                5,
-                5,
-                5
+                    5,
+                    5,
+                    5,
+                    5
                 )
             } else {
                 airbit.MotorSpeed(
-                motorA,
-                motorB,
-                motorC,
-                motorD
+                    motorA,
+                    motorB,
+                    motorC,
+                    motorD
                 )
             }
         } else {
@@ -106,17 +109,17 @@ function mainLoop () {
             airbit.cleanReg()
             if (motorTesting) {
                 airbit.MotorSpeed(
-                motorA,
-                motorB,
-                motorC,
-                motorD
+                    motorA,
+                    motorB,
+                    motorC,
+                    motorD
                 )
             } else {
                 airbit.MotorSpeed(
-                0,
-                0,
-                0,
-                0
+                    0,
+                    0,
+                    0,
+                    0
                 )
             }
         }
@@ -124,36 +127,42 @@ function mainLoop () {
         startTime = input.runningTime()
     }
 }
+
 input.onButtonPressed(Button.A, function () {
     mode += -1
     if (mode < 0) {
         mode = 6
     }
 })
-function radioSendData () {
-    radio.sendValue("p", rollPitchP)
-    radio.sendValue("i", rollPitchI)
-    radio.sendValue("d", rollPitchD)
-    radio.sendValue("t", radioReceivedTime)
-    radio.sendValue("R2", roll)
-    radio.sendValue("yp", yawP)
-    radio.sendValue("yd", yawD)
-    radio.sendValue("v", batterymVoltSmooth)
-    radio.sendValue("p0", pins.analogReadPin(AnalogPin.P0))
+
+function bluetoothSendData () {
+    bluetooth.uartWriteString("p:" + rollPitchP + "\n")
+    bluetooth.uartWriteString("i:" + rollPitchI + "\n")
+    bluetooth.uartWriteString("d:" + rollPitchD + "\n")
+    bluetooth.uartWriteString("t:" + bluetoothReceivedTime + "\n")
+    bluetooth.uartWriteString("R2:" + roll + "\n")
+    bluetooth.uartWriteString("yp:" + yawP + "\n")
+    bluetooth.uartWriteString("yd:" + yawD + "\n")
+    bluetooth.uartWriteString("v:" + batterymVoltSmooth + "\n")
+    bluetooth.uartWriteString("p0:" + pins.analogReadPin(AnalogPin.P0) + "\n")
     basic.pause(5000)
 }
+
 function gyroAccBubble () {
-	
+
 }
+
 input.onButtonPressed(Button.AB, function () {
     mode = 0
 })
+
 input.onButtonPressed(Button.B, function () {
     mode += 1
     if (mode > 6) {
         mode = 0
     }
 })
+
 function motorLed () {
     basic.clearScreen()
     led.plotBrightness(0, 4, motorA)
@@ -162,32 +171,40 @@ function motorLed () {
     led.plotBrightness(4, 0, motorD)
     led.plot(Math.map(imuRoll, -15, 15, 0, 4), Math.map(imuPitch, -15, 15, 4, 0))
 }
-radio.onReceivedValue(function (name, value) {
-    radioReceivedTime = input.runningTime()
-    if (name == "P") {
-        pitch = expo(value) / -3
-        pitch = Math.constrain(pitch, -15, 15)
-    }
-    if (name == "A") {
-        arm = value
-    }
-    if (name == "R") {
-        roll = expo(value) / 3
-        roll = Math.constrain(roll, -15, 15)
-    }
-    if (name == "T") {
-        throttle = value
-        throttle = Math.constrain(throttle, 0, 100)
-        if (batterymVoltSmooth < 3400) {
-            throttle = Math.constrain(throttle, 0, 75)
+
+// Expects commands formatted as "COMMAND:VALUE\n" (e.g., "P:10\n" or "A:1\n")
+bluetooth.onUartDataReceived(delimiters.newLine, function () {
+    let rawData = bluetooth.uartReadUntil(delimiters.newLine)
+    let parts = rawData.split(":")
+    if (parts.length == 2) {
+        let name = parts[0]
+        let value = parseFloat(parts[1])
+        bluetoothReceivedTime = input.runningTime()
+
+        if (name == "P") {
+            pitch = expo(value) / -3
+            pitch = Math.constrain(pitch, -15, 15)
+        }
+        if (name == "A") {
+            arm = value
+        }
+        if (name == "R") {
+            roll = expo(value) / 3
+            roll = Math.constrain(roll, -15, 15)
+        }
+        if (name == "T") {
+            throttle = value
+            throttle = Math.constrain(throttle, 0, 100)
+            if (batterymVoltSmooth < 3400) {
+                throttle = Math.constrain(throttle, 0, 75)
+            }
+        }
+        if (name == "Y") {
+            yaw += value * 0.1
         }
     }
-    if (name == "Y") {
-        yaw += value * 0.1
-    }
 })
-// smartBar(0, throttle)
-// smartBar(4, airbit.batteryLevel())
+
 function dots () {
     basic.clearScreen()
     led.plot(Math.map(roll, -15, 15, 0, 4), Math.map(pitch, -15, 15, 4, 0))
@@ -198,16 +215,16 @@ function dots () {
     airbit.smartBar(0, throttle)
     airbit.smartBar(4, airbit.batteryLevel())
 }
+
 function lostSignalCheck () {
-    // Failsafe makes only sense if already flying
     if (throttle > 65 && arm) {
-        if (input.runningTime() > radioReceivedTime + 3000) {
+        if (input.runningTime() > bluetoothReceivedTime + 3000) {
             roll = 0
             pitch = 0
             yaw = 0
             throttle = 65
         }
-        if (input.runningTime() > radioReceivedTime + 8000) {
+        if (input.runningTime() > bluetoothReceivedTime + 8000) {
             roll = 0
             pitch = 0
             yaw = 0
@@ -216,6 +233,7 @@ function lostSignalCheck () {
         }
     }
 }
+
 function motorTest () {
     motorA = 0
     motorB = 0
@@ -226,10 +244,10 @@ function motorTest () {
     for (let index = 0; index < 50; index++) {
         basic.clearScreen()
         airbit.rotateDot(
-        1,
-        1,
-        1,
-        10
+            1,
+            1,
+            1,
+            10
         )
         basic.pause(20)
     }
@@ -238,10 +256,10 @@ function motorTest () {
     for (let index = 0; index < 50; index++) {
         basic.clearScreen()
         airbit.rotateDot(
-        3,
-        1,
-        1,
-        -10
+            3,
+            1,
+            1,
+            -10
         )
         basic.pause(20)
     }
@@ -250,10 +268,10 @@ function motorTest () {
     for (let index = 0; index < 50; index++) {
         basic.clearScreen()
         airbit.rotateDot(
-        3,
-        3,
-        1,
-        10
+            3,
+            3,
+            1,
+            10
         )
         basic.pause(20)
     }
@@ -262,16 +280,17 @@ function motorTest () {
     for (let index = 0; index < 50; index++) {
         basic.clearScreen()
         airbit.rotateDot(
-        1,
-        3,
-        1,
-        -10
+            1,
+            3,
+            1,
+            -10
         )
         basic.pause(20)
     }
     motorA = 0
     motorTesting = false
 }
+
 function expo (inp: number) {
     if (inp >= 0) {
         return inp / expoSetting + inp * inp / expoFactor
@@ -279,8 +298,9 @@ function expo (inp: number) {
         return inp / expoSetting - inp * inp / expoFactor
     }
 }
+
 let yaw = 0
-let radioReceivedTime = 0
+let bluetoothReceivedTime = 0
 let startTime = 0
 let cpuTime = 0
 let motorTesting = false
@@ -309,21 +329,18 @@ let mcExists = false
 let batteryVolt = 0
 let imuYaw = 0
 let baroExists = false
+
 mcExists = false
 gyroExists = false
 stable = true
-let radioGroup = 7
 imuPitch = 0
 imuRoll = 0
 batterymVoltSmooth = 3700
-// Default: 0.7
+
 rollPitchP = 0.9
 rollPitchI = 0.004
-// Default: 15
 rollPitchD = 15
-// Default: 4
 yawP = 5
-// Default: 10
 yawD = 70
 motorA = 0
 motorC = 0
@@ -331,18 +348,22 @@ motorB = 0
 motorD = 0
 expoSetting = 2
 expoFactor = 45 * 45 / (45 - 45 / expoSetting)
-radio.setGroup(radioGroup)
+
+// Start Bluetooth UART service
+bluetooth.startUartService()
+
 i2crr.setI2CPins(DigitalPin.P2, DigitalPin.P1)
-// i2crr.setI2CPins(DigitalPin.P2, DigitalPin.P1)
 basic.pause(100)
 airbit.IMU_Start()
 basic.pause(100)
 airbit.PCA_Start()
 basic.pause(100)
 airbit.IMU_gyro_calibrate()
+
 while (arm) {
     basic.showString("Disarm!")
 }
+
 basic.forever(function () {
     if (stable == false) {
         basic.showString("Tilted. Please reset.")
@@ -373,27 +394,15 @@ basic.forever(function () {
             `)
     }
 })
-// basic.forever(function () {
-// 
-// airbit.batteryCalculation()
-// 
-// radio.sendValue("l", looptime)
-// 
-// radio.sendValue("p", rollPitchP)
-// 
-// radio.sendValue("i", rollPitchI)
-// 
-// radio.sendValue("a", tuningOutA)
-// 
-// radio.sendValue("b", tuningOutB)
-// 
-// })
+
 basic.forever(function () {
-    radioSendData()
+    bluetoothSendData()
 })
+
 basic.forever(function () {
     airbit.batteryCalculation()
 })
+
 basic.forever(function () {
     mainLoop()
 })
